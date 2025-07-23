@@ -59,4 +59,4 @@ spec:
       port: 9200
       targetPort: 9200
       name: http
-  type: ClusterIP
+  type: LoadBalancer  # Changed to LoadBalancer for external access
