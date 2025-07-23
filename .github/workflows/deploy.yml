@@ -108,19 +108,13 @@ jobs:
       - name: Create/Update Kibana secret
         env:
           ELASTIC_PASSWORD: ${{ secrets.ELASTIC_PASSWORD }}
-          KIBANA_SYSTEM_PASSWORD: ${KIBANA_SYSTEM_PASSWORD:-$ELASTIC_PASSWORD}
-          ENCRYPTION_KEY: ${{ secrets.KIBANA_ENCRYPTION_KEY || '' }}
+          KIBANA_SYSTEM_PASSWORD: ${{ secrets.KIBANA_SYSTEM_PASSWORD }}
+          KIBANA_ENCRYPTION_KEY: ${{ secrets.KIBANA_ENCRYPTION_KEY }}
         run: |
-          # Use provided encryption key or generate a new one
-          if [ -z "$ENCRYPTION_KEY" ]; then
-            ENCRYPTION_KEY=$(openssl rand -hex 32)
-            echo "##[warning] Generated new encryption key. Please add KIBANA_ENCRYPTION_KEY to GitHub Secrets for persistence"
-          fi
-          
           kubectl create secret generic kibana-secrets \
             --namespace=search \
             --from-literal=KIBANA_SYSTEM_PASSWORD="$KIBANA_SYSTEM_PASSWORD" \
-            --from-literal=ENCRYPTION_KEY="$ENCRYPTION_KEY" \
+            --from-literal=ENCRYPTION_KEY="$KIBANA_ENCRYPTION_KEY" \
             --dry-run=client -o yaml | kubectl apply -f -
 
       - name: Deploy Kibana
