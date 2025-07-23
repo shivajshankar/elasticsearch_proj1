@@ -10,6 +10,8 @@ spec:
   selector:
     matchLabels:
       app: kibana
+  strategy:
+    type: Recreate
   template:
     metadata:
       labels:
@@ -25,12 +27,12 @@ spec:
         - name: ELASTICSEARCH_HOSTS
           value: "http://elasticsearch:9200"
         - name: ELASTICSEARCH_USERNAME
-          value: "elastic"
+          value: "kibana_system"
         - name: ELASTICSEARCH_PASSWORD
           valueFrom:
             secretKeyRef:
-              name: elasticsearch-secrets
-              key: ELASTIC_PASSWORD
+              name: kibana-secrets
+              key: KIBANA_SYSTEM_PASSWORD
         - name: SERVER_HOST
           value: "0.0.0.0"
         - name: XPACK_ENCRYPTEDSAVEDOBJECTS_ENCRYPTIONKEY
@@ -38,13 +40,27 @@ spec:
             secretKeyRef:
               name: kibana-secrets
               key: ENCRYPTION_KEY
+        - name: XPACK_SECURITY_LOGINASSISTANT_MESSAGE
+          value: "Please log in with your Elasticsearch credentials"
         resources:
           limits:
-            cpu: "1"
+            cpu: "500m"
             memory: "1Gi"
           requests:
             cpu: "100m"
             memory: "512Mi"
+        readinessProbe:
+          httpGet:
+            path: /api/status
+            port: 5601
+          initialDelaySeconds: 30
+          timeoutSeconds: 10
+        livenessProbe:
+          httpGet:
+            path: /api/status
+            port: 5601
+          initialDelaySeconds: 60
+          timeoutSeconds: 10
 ---
 apiVersion: v1
 kind: Service

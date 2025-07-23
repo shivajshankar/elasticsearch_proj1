@@ -37,6 +37,7 @@ jobs:
       - name: Create/Update Kibana secret
         env:
           ELASTIC_PASSWORD: ${{ secrets.ELASTIC_PASSWORD }}
+          KIBANA_SYSTEM_PASSWORD: ${{ secrets.KIBANA_SYSTEM_PASSWORD || secrets.ELASTIC_PASSWORD }}
           ENCRYPTION_KEY: ${{ secrets.KIBANA_ENCRYPTION_KEY || '' }}
         run: |
           # Use provided encryption key or generate a new one
@@ -47,7 +48,7 @@ jobs:
           
           kubectl create secret generic kibana-secrets \
             --namespace=search \
-            --from-literal=ELASTIC_PASSWORD="$ELASTIC_PASSWORD" \
+            --from-literal=KIBANA_SYSTEM_PASSWORD="$KIBANA_SYSTEM_PASSWORD" \
             --from-literal=ENCRYPTION_KEY="$ENCRYPTION_KEY" \
             --dry-run=client -o yaml | kubectl apply -f -
 
