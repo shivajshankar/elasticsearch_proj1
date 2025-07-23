@@ -34,6 +34,23 @@ jobs:
             --from-literal=ELASTIC_PASSWORD="$ELASTIC_PASSWORD" \
             --dry-run=client -o yaml | kubectl apply -f -
 
+      - name: Create/Update Kibana secret
+        env:
+          ELASTIC_PASSWORD: ${{ secrets.ELASTIC_PASSWORD }}
+          ENCRYPTION_KEY: ${{ secrets.KIBANA_ENCRYPTION_KEY || '' }}
+        run: |
+          # Use provided encryption key or generate a new one
+          if [ -z "$ENCRYPTION_KEY" ]; then
+            ENCRYPTION_KEY=$(openssl rand -hex 32)
+            echo "##[warning] Generated new encryption key. Please add KIBANA_ENCRYPTION_KEY to GitHub Secrets for persistence"
+          fi
+          
+          kubectl create secret generic kibana-secrets \
+            --namespace=search \
+            --from-literal=ELASTIC_PASSWORD="$ELASTIC_PASSWORD" \
+            --from-literal=ENCRYPTION_KEY="$ENCRYPTION_KEY" \
+            --dry-run=client -o yaml | kubectl apply -f -
+
       - name: Deploy Applications
         run: |
           echo "Deploying applications to 'search' namespace..."
@@ -44,3 +61,6 @@ jobs:
         run: |
           echo "Deployment status:"
           kubectl get pods -n search || echo "Could not verify deployment status. Continuing..."
+          
+          echo -e "\nService status:"
+          kubectl get svc -n search

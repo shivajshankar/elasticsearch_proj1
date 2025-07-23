@@ -10,47 +10,41 @@ spec:
   selector:
     matchLabels:
       app: kibana
-  strategy:
-    type: Recreate
   template:
     metadata:
       labels:
         app: kibana
     spec:
       containers:
-        - name: kibana
-          image: docker.elastic.co/kibana/kibana:8.13.4
-          ports:
-            - containerPort: 5601
-              name: http
-          env:
-            - name: ELASTICSEARCH_HOSTS
-              value: "http://elasticsearch.search.svc.cluster.local:9200"
-            - name: NODE_OPTIONS
-              value: "--max-old-space-size=768"
-            - name: SERVER_NAME
-              value: "kibana.search.svc.cluster.local"
-            - name: SERVER_HOST
-              value: "0.0.0.0"
-          resources:
-            limits:
-              memory: "1Gi"
-              cpu: "500m"
-            requests:
-              memory: "768Mi"
-              cpu: "250m"
-          livenessProbe:
-            httpGet:
-              path: /api/status
-              port: 5601
-            initialDelaySeconds: 60
-            timeoutSeconds: 10
-          readinessProbe:
-            httpGet:
-              path: /api/status
-              port: 5601
-            initialDelaySeconds: 30
-            timeoutSeconds: 10
+      - name: kibana
+        image: docker.elastic.co/kibana/kibana:8.13.4
+        ports:
+        - containerPort: 5601
+          name: http
+        env:
+        - name: ELASTICSEARCH_HOSTS
+          value: "http://elasticsearch:9200"
+        - name: ELASTICSEARCH_USERNAME
+          value: "elastic"
+        - name: ELASTICSEARCH_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: elasticsearch-secrets
+              key: ELASTIC_PASSWORD
+        - name: SERVER_HOST
+          value: "0.0.0.0"
+        - name: XPACK_ENCRYPTEDSAVEDOBJECTS_ENCRYPTIONKEY
+          valueFrom:
+            secretKeyRef:
+              name: kibana-secrets
+              key: ENCRYPTION_KEY
+        resources:
+          limits:
+            cpu: "1"
+            memory: "1Gi"
+          requests:
+            cpu: "100m"
+            memory: "512Mi"
 ---
 apiVersion: v1
 kind: Service
@@ -60,11 +54,10 @@ metadata:
   labels:
     app: kibana
 spec:
+  type: LoadBalancer
+  ports:
+  - port: 5601
+    targetPort: 5601
+    name: http
   selector:
     app: kibana
-  ports:
-    - protocol: TCP
-      port: 5601
-      targetPort: 5601
-      name: http
-  type: LoadBalancer
