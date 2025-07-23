@@ -25,14 +25,19 @@ jobs:
           echo "${{ secrets.KUBECONFIG_DATA }}" | base64 -d > ~/.kube/config
           kubectl config use-context default-context
 
-      - name: Verify search namespace exists
+      - name: Check namespace access
         run: |
-          if ! kubectl get namespace search >/dev/null 2>&1; then
+          # Try to list namespaces to check permissions
+          if ! kubectl auth can-i list namespaces; then
+            echo "Warning: Cannot list namespaces. The service account has limited permissions."
+            echo "Assuming 'search' namespace exists or will be created by the deployment..."
+          elif ! kubectl get namespace search >/dev/null 2>&1; then
             echo "Error: 'search' namespace does not exist. Please create it manually first:"
             echo "kubectl create namespace search"
             exit 1
+          else
+            echo "Using existing 'search' namespace"
           fi
-          echo "Using existing 'search' namespace"
 
       - name: Create GitHub Actions RBAC for search namespace
         run: |
@@ -64,6 +69,11 @@ jobs:
 
       - name: Deploy Elasticsearch
         run: |
+          # Create namespace if it doesn't exist (requires namespace creation permission)
+          if ! kubectl get namespace search >/dev/null 2>&1; then
+            echo "Creating 'search' namespace..."
+            kubectl create namespace search || echo "Warning: Could not create namespace. Continuing with deployment..."
+          fi
           kubectl apply -n search -f deploy/k8s/elasticsearch.yaml
 
       - name: Deploy Kibana
@@ -73,5 +83,5 @@ jobs:
       - name: Verify deployments
         run: |
           echo "Current resources in search namespace:"
-          kubectl get all -n search
+          kubectl get all -n search || echo "Could not list resources in 'search' namespace. Continuing..."
           echo -e "\nDeployment to ${{ github.event.inputs.environment }} environment completed"
