@@ -28,8 +28,21 @@ spec:
               value: single-node
             - name: ES_JAVA_OPTS
               value: "-Xms512m -Xmx512m"
+            # Security Configuration
             - name: xpack.security.enabled
-              value: "false"
+              value: "true"
+            - name: xpack.security.http.ssl.enabled
+              value: "false"  # Disable SSL for development
+            - name: ELASTIC_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: elasticsearch-secrets
+                  key: ELASTIC_PASSWORD
+            - name: ELASTIC_USERNAME
+              value: "elastic"
+            - name: xpack.security.authc.api_key.enabled
+              value: "true"
+            # End Security Configuration
             - name: node.name
               valueFrom:
                 fieldRef:
@@ -63,4 +76,4 @@ spec:
       port: 9200
       targetPort: 9200
       name: http
-  type: LoadBalancer  # Changed to LoadBalancer for external access
+  type: LoadBalancer

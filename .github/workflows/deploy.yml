@@ -24,6 +24,15 @@ jobs:
           mkdir -p ~/.kube
           echo "${{ secrets.KUBECONFIG_DATA }}" | base64 -d > ~/.kube/config
           kubectl config use-context default-context
+          
+      - name: Create/Update Elasticsearch secret
+        env:
+          ELASTIC_PASSWORD: ${{ secrets.ELASTIC_PASSWORD }}
+        run: |
+          kubectl create secret generic elasticsearch-secrets \
+            --namespace=search \
+            --from-literal=ELASTIC_PASSWORD="$ELASTIC_PASSWORD" \
+            --dry-run=client -o yaml | kubectl apply -f -
 
       - name: Deploy Applications
         run: |
