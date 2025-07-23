@@ -10,6 +10,8 @@ spec:
   selector:
     matchLabels:
       app: elasticsearch
+  strategy:
+    type: Recreate
   template:
     metadata:
       labels:
@@ -38,10 +40,10 @@ spec:
           resources:
             limits:
               memory: "1Gi"
-              cpu: "1"
+              cpu: "500m"
             requests:
               memory: "768Mi"
-              cpu: "500m"
+              cpu: "250m"
       volumes:
         - name: elasticsearch-data
           emptyDir: {}
