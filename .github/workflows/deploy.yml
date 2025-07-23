@@ -1,4 +1,4 @@
-name: Deploy to K3s
+name: Deploy to K3s (Search Namespace)
 
 on:
   workflow_dispatch:
@@ -25,18 +25,48 @@ jobs:
           echo "${{ secrets.KUBECONFIG_DATA }}" | base64 -d > ~/.kube/config
           kubectl config use-context default-context
 
-      - name: Show Kubernetes context
+      - name: Create search namespace if not exists
         run: |
-          kubectl config current-context
-          kubectl cluster-info
+          kubectl create namespace search --dry-run=client -o yaml | kubectl apply -f -
+
+      - name: Create GitHub Actions RBAC for search namespace
+        run: |
+          cat <<EOF | kubectl apply -f -
+          apiVersion: rbac.authorization.k8s.io/v1
+          kind: Role
+          metadata:
+            name: github-actions-role
+            namespace: search
+          rules:
+          - apiGroups: ["", "apps", "networking.k8s.io", "batch", "extensions"]
+            resources: ["*"]
+            verbs: ["*"]
+          ---
+          apiVersion: rbac.authorization.k8s.io/v1
+          kind: RoleBinding
+          metadata:
+            name: github-actions-binding
+            namespace: search
+          subjects:
+          - kind: ServiceAccount
+            name: github-actions
+            namespace: github-actions
+          roleRef:
+            kind: Role
+            name: github-actions-role
+            apiGroup: rbac.authorization.k8s.io
+          EOF
 
       - name: Deploy Elasticsearch
-        run: kubectl apply -f deploy/k8s/elasticsearch.yaml
+        run: |
+          kubectl apply -n search -f deploy/k8s/elasticsearch.yaml
 
       - name: Deploy Kibana
-        run: kubectl apply -f deploy/k8s/kibana.yaml
+        run: |
+          kubectl apply -n search -f deploy/k8s/kibana.yaml
 
       - name: Verify deployments
         run: |
-          kubectl get pods -n default
-          echo "Deployment to ${{ github.event.inputs.environment }} environment completed"
+          echo "Current resources in search namespace:"
+          kubectl get all -n search
+          echo -e "\nDeployment to ${{ github.event.inputs.environment }} environment completed"
