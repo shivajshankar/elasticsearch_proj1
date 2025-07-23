@@ -52,6 +52,31 @@ jobs:
           echo "Waiting for Elasticsearch to be responsive..."
           kubectl exec -n search $ES_POD -- bash -c 'until curl -s http://localhost:9200/; do sleep 5; done'
           
+          # Update the password via API to ensure it matches the secret
+          echo "Updating Elasticsearch password to match GitHub secret..."
+          kubectl exec -n search $ES_POD -- bash -c '
+            # Wait for security to be initialized
+            until curl -s http://localhost:9200/; do sleep 5; done
+            
+            # Update the password via API
+            if curl -s -u "elastic:$ELASTIC_PASSWORD" -X POST "http://localhost:9200/_security/user/elastic/_password" \
+              -H "Content-Type: application/json" \
+              -d "{\"password\":\"$ELASTIC_PASSWORD\"}"; then
+              echo "✅ Successfully updated elastic user password"
+              
+              # Verify the new password works
+              if curl -s -u "elastic:$ELASTIC_PASSWORD" "http://localhost:9200/_security/_authenticate"; then
+                echo "✅ Successfully verified new password"
+                exit 0
+              else
+                echo "❌ Failed to verify new password"
+                exit 1
+              fi
+            else
+              echo "❌ Failed to update password"
+              exit 1
+            fi'
+
           # Set the kibana_system password with retries
           echo "Setting kibana_system password..."
           kubectl exec -n search $ES_POD -- bash -c '
