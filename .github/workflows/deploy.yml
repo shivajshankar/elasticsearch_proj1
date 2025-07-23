@@ -25,22 +25,9 @@ jobs:
           echo "${{ secrets.KUBECONFIG_DATA }}" | base64 -d > ~/.kube/config
           kubectl config use-context default-context
 
-      - name: Check namespace access
+      - name: Deploy RBAC and Applications
         run: |
-          # Try to list namespaces to check permissions
-          if ! kubectl auth can-i list namespaces; then
-            echo "Warning: Cannot list namespaces. The service account has limited permissions."
-            echo "Assuming 'search' namespace exists or will be created by the deployment..."
-          elif ! kubectl get namespace search >/dev/null 2>&1; then
-            echo "Error: 'search' namespace does not exist. Please create it manually first:"
-            echo "kubectl create namespace search"
-            exit 1
-          else
-            echo "Using existing 'search' namespace"
-          fi
-
-      - name: Create GitHub Actions RBAC for search namespace
-        run: |
+          # Apply RBAC for search namespace
           cat <<EOF | kubectl apply -f -
           apiVersion: rbac.authorization.k8s.io/v1
           kind: Role
@@ -66,22 +53,12 @@ jobs:
             name: github-actions-role
             apiGroup: rbac.authorization.k8s.io
           EOF
-
-      - name: Deploy Elasticsearch
-        run: |
-          # Create namespace if it doesn't exist (requires namespace creation permission)
-          if ! kubectl get namespace search >/dev/null 2>&1; then
-            echo "Creating 'search' namespace..."
-            kubectl create namespace search || echo "Warning: Could not create namespace. Continuing with deployment..."
-          fi
+          
+          # Deploy applications
           kubectl apply -n search -f deploy/k8s/elasticsearch.yaml
-
-      - name: Deploy Kibana
-        run: |
           kubectl apply -n search -f deploy/k8s/kibana.yaml
 
       - name: Verify deployments
         run: |
-          echo "Current resources in search namespace:"
-          kubectl get all -n search || echo "Could not list resources in 'search' namespace. Continuing..."
-          echo -e "\nDeployment to ${{ github.event.inputs.environment }} environment completed"
+          echo "Deployment status:"
+          kubectl get pods -n search || echo "Could not verify deployment status. Continuing..."
