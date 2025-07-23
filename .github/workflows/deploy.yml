@@ -25,36 +25,9 @@ jobs:
           echo "${{ secrets.KUBECONFIG_DATA }}" | base64 -d > ~/.kube/config
           kubectl config use-context default-context
 
-      - name: Deploy RBAC and Applications
+      - name: Deploy Applications
         run: |
-          # Apply RBAC for search namespace
-          cat <<EOF | kubectl apply -f -
-          apiVersion: rbac.authorization.k8s.io/v1
-          kind: Role
-          metadata:
-            name: github-actions-role
-            namespace: search
-          rules:
-          - apiGroups: ["", "apps", "networking.k8s.io", "batch", "extensions"]
-            resources: ["*"]
-            verbs: ["*"]
-          ---
-          apiVersion: rbac.authorization.k8s.io/v1
-          kind: RoleBinding
-          metadata:
-            name: github-actions-binding
-            namespace: search
-          subjects:
-          - kind: ServiceAccount
-            name: github-actions
-            namespace: github-actions
-          roleRef:
-            kind: Role
-            name: github-actions-role
-            apiGroup: rbac.authorization.k8s.io
-          EOF
-          
-          # Deploy applications
+          echo "Deploying applications to 'search' namespace..."
           kubectl apply -n search -f deploy/k8s/elasticsearch.yaml
           kubectl apply -n search -f deploy/k8s/kibana.yaml
 
