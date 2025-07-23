@@ -28,16 +28,39 @@ jobs:
       - name: Create/Update Elasticsearch secret
         env:
           ELASTIC_PASSWORD: ${{ secrets.ELASTIC_PASSWORD }}
+          KIBANA_SYSTEM_PASSWORD: ${KIBANA_SYSTEM_PASSWORD:-$ELASTIC_PASSWORD}
         run: |
+          # Create or update the secret with both passwords
           kubectl create secret generic elasticsearch-secrets \
             --namespace=search \
             --from-literal=ELASTIC_PASSWORD="$ELASTIC_PASSWORD" \
+            --from-literal=KIBANA_SYSTEM_PASSWORD="$KIBANA_SYSTEM_PASSWORD" \
             --dry-run=client -o yaml | kubectl apply -f -
+
+      - name: Deploy Elasticsearch
+        run: |
+          echo "Deploying Elasticsearch..."
+          kubectl apply -n search -f deploy/k8s/elasticsearch.yaml
+          
+          # Wait for Elasticsearch to be ready
+          kubectl wait --for=condition=ready pod -l app=elasticsearch -n search --timeout=300s
+          
+          # Get Elasticsearch pod name
+          ES_POD=$(kubectl get pods -n search -l app=elasticsearch -o jsonpath='{.items[0].metadata.name}')
+          
+          # Set the kibana_system password if not already set
+          kubectl exec -n search $ES_POD -- bash -c '
+            if ! curl -s -u elastic:$ELASTIC_PASSWORD -X GET http://localhost:9200/_security/user/kibana_system | grep -q "is_enabled.*true"; then
+              echo "Setting kibana_system password..."
+              curl -s -u elastic:$ELASTIC_PASSWORD -X POST "http://localhost:9200/_security/user/kibana_system/_password" \
+                -H "Content-Type: application/json" \
+                -d "{\"password\":\"$KIBANA_SYSTEM_PASSWORD\"}" || echo "Failed to set kibana_system password"
+            fi'
 
       - name: Create/Update Kibana secret
         env:
           ELASTIC_PASSWORD: ${{ secrets.ELASTIC_PASSWORD }}
-          KIBANA_SYSTEM_PASSWORD: ${{ secrets.KIBANA_SYSTEM_PASSWORD || secrets.ELASTIC_PASSWORD }}
+          KIBANA_SYSTEM_PASSWORD: ${KIBANA_SYSTEM_PASSWORD:-$ELASTIC_PASSWORD}
           ENCRYPTION_KEY: ${{ secrets.KIBANA_ENCRYPTION_KEY || '' }}
         run: |
           # Use provided encryption key or generate a new one
@@ -52,16 +75,18 @@ jobs:
             --from-literal=ENCRYPTION_KEY="$ENCRYPTION_KEY" \
             --dry-run=client -o yaml | kubectl apply -f -
 
-      - name: Deploy Applications
+      - name: Deploy Kibana
         run: |
-          echo "Deploying applications to 'search' namespace..."
-          kubectl apply -n search -f deploy/k8s/elasticsearch.yaml
+          echo "Deploying Kibana..."
           kubectl apply -n search -f deploy/k8s/kibana.yaml
 
       - name: Verify deployments
         run: |
           echo "Deployment status:"
-          kubectl get pods -n search || echo "Could not verify deployment status. Continuing..."
+          kubectl get pods -n search
           
           echo -e "\nService status:"
           kubectl get svc -n search
+          
+          echo -e "\nKibana logs:"
+          kubectl logs -n search -l app=kibana --tail=50 || echo "Could not get Kibana logs"

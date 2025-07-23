@@ -42,6 +42,11 @@ spec:
               value: "elastic"
             - name: xpack.security.authc.api_key.enabled
               value: "true"
+            - name: KIBANA_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: elasticsearch-secrets
+                  key: KIBANA_SYSTEM_PASSWORD
             # End Security Configuration
             - name: node.name
               valueFrom:
