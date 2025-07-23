@@ -25,9 +25,14 @@ jobs:
           echo "${{ secrets.KUBECONFIG_DATA }}" | base64 -d > ~/.kube/config
           kubectl config use-context default-context
 
-      - name: Create search namespace if not exists
+      - name: Verify search namespace exists
         run: |
-          kubectl create namespace search --dry-run=client -o yaml | kubectl apply -f -
+          if ! kubectl get namespace search >/dev/null 2>&1; then
+            echo "Error: 'search' namespace does not exist. Please create it manually first:"
+            echo "kubectl create namespace search"
+            exit 1
+          fi
+          echo "Using existing 'search' namespace"
 
       - name: Create GitHub Actions RBAC for search namespace
         run: |
