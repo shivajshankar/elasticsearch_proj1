@@ -1,9 +1,16 @@
 name: Deploy to K3s
 
 on:
-  push:
-    branches:
-      - main
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment to deploy to'
+        required: true
+        default: 'production'
+        type: choice
+        options:
+        - production
+        - staging
 
 jobs:
   deploy:
@@ -16,9 +23,20 @@ jobs:
         run: |
           mkdir -p ~/.kube
           echo "${{ secrets.KUBECONFIG_DATA }}" | base64 -d > ~/.kube/config
+          kubectl config use-context default-context
+
+      - name: Show Kubernetes context
+        run: |
+          kubectl config current-context
+          kubectl cluster-info
 
       - name: Deploy Elasticsearch
         run: kubectl apply -f deploy/k8s/elasticsearch.yaml
 
       - name: Deploy Kibana
         run: kubectl apply -f deploy/k8s/kibana.yaml
+
+      - name: Verify deployments
+        run: |
+          kubectl get pods -n default
+          echo "Deployment to ${{ github.event.inputs.environment }} environment completed"
