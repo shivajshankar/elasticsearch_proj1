@@ -48,13 +48,36 @@ jobs:
           # Get Elasticsearch pod name
           ES_POD=$(kubectl get pods -n search -l app=elasticsearch -o jsonpath='{.items[0].metadata.name}')
           
-          # Set the kibana_system password if not already set
+          # Wait for Elasticsearch to be responsive
+          echo "Waiting for Elasticsearch to be responsive..."
+          kubectl exec -n search $ES_POD -- bash -c 'until curl -s http://localhost:9200/; do sleep 5; done'
+          
+          # Set the kibana_system password with retries
+          echo "Setting kibana_system password..."
           kubectl exec -n search $ES_POD -- bash -c '
-            if ! curl -s -u elastic:$ELASTIC_PASSWORD -X GET http://localhost:9200/_security/user/kibana_system | grep -q "is_enabled.*true"; then
-              echo "Setting kibana_system password..."
-              curl -s -u elastic:$ELASTIC_PASSWORD -X POST "http://localhost:9200/_security/user/kibana_system/_password" \
+            for i in {1..5}; do
+              if curl -s -u elastic:$ELASTIC_PASSWORD -X POST "http://localhost:9200/_security/user/kibana_system/_password" \
                 -H "Content-Type: application/json" \
-                -d "{\"password\":\"$KIBANA_SYSTEM_PASSWORD\"}" || echo "Failed to set kibana_system password"
+                -d "{\"password\":\"$KIBANA_SYSTEM_PASSWORD\"}"; then
+                echo "Successfully set kibana_system password"
+                exit 0
+              fi
+              echo "Attempt $i/5 failed, retrying in 5 seconds..."
+              sleep 5
+            done
+            echo "Failed to set kibana_system password after 5 attempts"
+            exit 1
+          '
+
+          # Verify the kibana_system password was set
+          echo "Verifying kibana_system password..."
+          kubectl exec -n search $ES_POD -- bash -c '
+            if curl -s -u "kibana_system:$KIBANA_SYSTEM_PASSWORD" http://localhost:9200/; then
+              echo "✅ Successfully verified kibana_system password"
+              exit 0
+            else
+              echo "❌ Failed to verify kibana_system password"
+              exit 1
             fi'
 
       - name: Create/Update Kibana secret
